@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 #--------------[Constants]----------------
 INPUT_FILE = "links.txt"
-OUTPUT_FILE = "list.txt"
+OUTPUT_FILE = "output.txt"
 
 CHROME_PATHS = [
     "C:/Program Files/Google/Chrome Beta/Application/chrome.exe",
