@@ -137,29 +137,54 @@ async def process_link(context, link, page):
 
 
 #--------------[Main Function]--------------
+async def worker(browser, queue, extracted, pbar):
+    context = await browser.new_context(accept_downloads=False)
+    context.set_default_timeout(60000)
+    page = await context.new_page()
+    
+    while True:
+        try:
+            idx, link = await queue.get()
+            try:
+                result = await process_link(context, link, page)
+                extracted[idx] = result if result else f"# Failed to extract from {link}"
+            except Exception as e:
+                extracted[idx] = f"# Error processing {link}: {e}"
+            finally:
+                pbar.update(1)
+                queue.task_done()
+        except asyncio.CancelledError:
+            await context.close()
+            break
+
 async def main():
     with open(INPUT_FILE, "r", encoding="utf-8") as f:
         links = [line.strip() for line in f if line.strip()]
 
-    extracted = []
-
+    extracted = [None] * len(links)
+    
     async with async_playwright() as p:
         browser = await p.chromium.launch(
-            headless=False,
+            headless=True,
             executable_path=BROWSER_PATH,
             args=[
                 "--disable-popup-blocking",
                 "--disable-blink-features=AutomationControlled"
             ]
         )
-        context = await browser.new_context(accept_downloads=False)
-        context.set_default_timeout(60000)
 
-        page = await context.new_page()
+        queue = asyncio.Queue()
+        for idx, link in enumerate(links):
+            await queue.put((idx, link))
 
-        for link in tqdm(links, desc="Extracting URLs", unit="link"):
-            result = await process_link(context, link, page)
-            extracted.append(result if result else f"# Failed to extract from {link}")
+        with tqdm(total=len(links), desc="Extracting URLs", unit="link") as pbar:
+            workers = [asyncio.create_task(worker(browser, queue, extracted, pbar)) 
+                      for _ in range(3)]
+            
+            await queue.join()
+            for worker_task in workers:
+                worker_task.cancel()
+            await asyncio.gather(*workers, return_exceptions=True)
 
         await browser.close()
 
