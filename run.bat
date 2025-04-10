@@ -27,7 +27,7 @@ call "%VENV_FOLDER%\Scripts\activate"
 REM Install required libraries (e.g., from a requirements.txt file)
 if exist requirements.txt (
     echo Installing required libraries...
-    pip install -r requirements.txt
+    pip install --upgrade-strategy only-if-needed -r requirements.txt
     
     if errorlevel 1 (
         echo Failed to install required libraries.
