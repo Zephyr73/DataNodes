@@ -1,7 +1,6 @@
 import asyncio
 import os
 from urllib.parse import urlparse, unquote
-
 from playwright.async_api import async_playwright
 from tqdm import tqdm
 
@@ -29,8 +28,7 @@ AD_BLOCK_FILTERS = [
     "gtag/js"
 ]
 
-#Check if Chrome is installed in the default locations
-
+# Check if Chrome is installed in the default locations
 BROWSER_PATH = None
 
 for path in CHROME_PATHS:
@@ -51,7 +49,8 @@ def is_valid_download(url: str) -> bool:
     parsed = urlparse(url)
     return bool(parsed.scheme in ["http", "https"] and parsed.netloc)
 
-async def wait_for_download_response(context):
+#--------------[Main Processing Functions]--------------
+async def wait_for_download_response(context, page):
     try:
         response = await context.wait_for_event(
             "response",
@@ -60,19 +59,18 @@ async def wait_for_download_response(context):
                 resp.request.method == "POST" and
                 "application/json" in resp.headers.get("content-type", "")
             ),
-            timeout = 30000
+            timeout=30000
         )
         data = await response.json()
         raw_url = data.get("url") or data.get("downloadUrl") or data.get("link")
         return unquote(raw_url) if raw_url else None
     except Exception:
-        print("❌ Timed out or failed to get download response")
-        return None
+        print("❌ Timed out or failed to get download response. Refreshing page...")
+        await page.reload() 
+        await page.wait_for_load_state("networkidle")  
 
-#--------------[Main Processing Functions]--------------
-async def process_link(context, link):
-    page = await context.new_page()
 
+async def process_link(context, link, page):
     # Block ad domains
     async def route_interceptor(route):
         if any(ad in route.request.url for ad in AD_BLOCK_FILTERS):
@@ -93,19 +91,36 @@ async def process_link(context, link):
 
     try:
         tqdm.write(f"🌐 Opening: {link}")
-        await page.goto(link, wait_until = "networkidle")
-        await page.wait_for_timeout(10000)
+        await page.goto(link, wait_until="networkidle")
+
+        is_cloudflare_error = await page.locator('text=Bad Gateway').is_visible() or \
+                               await page.locator('text=Error 502').is_visible()
+
+        if is_cloudflare_error:
+            tqdm.write(f"⚠️ Cloudflare Bad Gateway detected. Refreshing page for {link}.")
+            await page.reload()  
+            await page.wait_for_load_state("networkidle")  
+
         await remove_iframes()
 
-        await page.locator("button:has-text('continue to download')").click()
-        await page.wait_for_load_state("networkidle")
-        await page.wait_for_timeout(5000)
+        # 1st download button
+        continue_button = page.locator("button:has-text('continue to download')")
+        await continue_button.wait_for(state="visible")
+        await continue_button.click()
 
-        await page.locator("button:has-text('download')").click()
-        await page.wait_for_timeout(7000)
+        # 2nd download button
+        download_button = page.locator("button:has-text('download')")
+        await download_button.wait_for(state="visible")
+        await download_button.click()
 
-        wait_task = asyncio.create_task(wait_for_download_response(context))
-        await page.locator("button:has-text('continue')").click()
+        #Start checking for the download response before clicking the "continue" button
+        wait_task = asyncio.create_task(wait_for_download_response(context, page))
+
+        # 3rd download button
+        continue_button = page.locator("button:has-text('continue')")
+        await continue_button.wait_for(state="visible")
+        await continue_button.click()
+
         download_url = await wait_task
         download_url = download_url.replace("%0A", "").replace("\n", "")
 
@@ -116,8 +131,10 @@ async def process_link(context, link):
             tqdm.write("⚠️ No valid URL extracted")
     except Exception as e:
         print(f"❌ Error on {link}: {e}")
+        await page.reload()
 
     return None
+
 
 #--------------[Main Function]--------------
 async def main():
@@ -128,9 +145,9 @@ async def main():
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
-            headless = True,
-            executable_path = BROWSER_PATH,
-            args = [
+            headless=False,
+            executable_path=BROWSER_PATH,
+            args=[
                 "--disable-popup-blocking",
                 "--disable-blink-features=AutomationControlled"
             ]
@@ -138,13 +155,15 @@ async def main():
         context = await browser.new_context(accept_downloads=False)
         context.set_default_timeout(60000)
 
+        page = await context.new_page()
+
         for link in tqdm(links, desc="Extracting URLs", unit="link"):
-            result = await process_link(context, link)
+            result = await process_link(context, link, page)
             extracted.append(result if result else f"# Failed to extract from {link}")
 
         await browser.close()
 
-    with open(OUTPUT_FILE, "w", encoding = "utf-8") as f:
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(extracted))
 
     print(f"\n📁 Done. All extracted URLs saved to: {OUTPUT_FILE}")
