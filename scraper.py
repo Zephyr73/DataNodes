@@ -165,7 +165,7 @@ async def main():
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(
-            headless=True,
+            headless=False,
             executable_path=BROWSER_PATH,
             args=[
                 "--disable-popup-blocking",
