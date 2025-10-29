@@ -109,7 +109,7 @@ async def process_link(context, link, page):
         await continue_button.click()
 
         # 2nd download button
-        download_button = page.locator("button:has-text('download')")
+        download_button = page.locator("button:text-is('Download')")
         await download_button.wait_for(state="visible")
         await download_button.click()
 
