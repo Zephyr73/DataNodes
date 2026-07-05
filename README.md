@@ -1,6 +1,7 @@
 # Datanodes Link Extractor
 
 This Python script automates the process of navigating Datanodes.to links, clicking through the download buttons, and extracting the final direct download URLs. It uses [Playwright](https://playwright.dev/python/) for browser automation and `tqdm` for progress tracking.
+
 ---
 
 ## Requirements
