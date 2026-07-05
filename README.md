@@ -1,4 +1,4 @@
-# 🔗 Datanodes Link Extractor
+# Datanodes Link Extractor
 
 This Python script automates the process of navigating Datanodes.to links, clicking through the download buttons, and extracting the final direct download URLs. It uses [Playwright](https://playwright.dev/python/) for browser automation and `tqdm` for progress tracking.
 ---
@@ -10,7 +10,7 @@ This Python script automates the process of navigating Datanodes.to links, click
 - [Playwright](https://playwright.dev/python/) (Included in requirements.txt)
 - [tqdm](https://tqdm.github.io/) (Included in requirements.txt)
 
-## 🚀 Usage
+## Usage
 
 1. Put all your links inside a file named `links.txt`, one per line.
 2. Run the script:
@@ -24,9 +24,9 @@ This Python script automates the process of navigating Datanodes.to links, click
    - Run the webscraper
 4. Open `output.txt` and copy the links to idm or jdownloader
 
-## 🛠 Notes
+## Notes
 
-- 🧭 **Browser Detection**:  
+- **Browser Detection**:  
   The script uses the first Chrome installation it finds in these default Windows paths:
   - C:/Program Files/Google/Chrome Beta/Application/chrome.exe
   - C:/Program Files/Google/Chrome/Application/chrome.exe
